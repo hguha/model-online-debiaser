@@ -1,0 +1,4 @@
+.idea
+venv
+*.csv
+!./data/raw_data.csv
