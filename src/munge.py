@@ -6,6 +6,7 @@ from config import configs
 raw_filename = configs['raw_data_path']
 n = 1000  # size of training set we want to consider
 total_size = sum(1 for line in open(raw_filename))
+
 cols = ['sex', 'age', 'age_cat', 'race', 'juv_fel_count', 'decile_score', 'juv_misd_count', 'juv_other_count',
         'priors_count', 'days_b_screening_arrest', 'c_jail_in', 'c_jail_out', 'c_case_number', 'c_offense_date',
         'c_arrest_date', 'c_days_from_compas', 'c_charge_degree', 'c_charge_desc', 'is_recid', 'num_r_cases',
