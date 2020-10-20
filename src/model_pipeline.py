@@ -4,12 +4,12 @@ from src.model_architectures import ShallowFFN
 from src.munge import divide_data_set, create_dataloader
 
 #get dataframes
-train_df, validate_df, test_df = munge.divide_data_set("data/raw_data.csv")
+train_df, validate_df, test_df = divide_data_set("data/raw_data.csv")
 
 #turn them into dataloaders maybe
-train_data_loader = munge.create_dataloader(train_df)
-validation_data_loader = munge.create_dataloader(validate_df)
-test_data_loader = munge.create_dataloader(test_df)
+train_data_loader = create_dataloader(train_df)
+validation_data_loader = create_dataloader(validate_df)
+test_data_loader = create_dataloader(test_df)
 
 
 def format_hyperparameters_to_name(hyperparameters):
