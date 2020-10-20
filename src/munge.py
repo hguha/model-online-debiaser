@@ -19,10 +19,8 @@ cols = cat_cols+num_cols
 #this may be a config, it will change depending on the csv
 filters = ['days_b_screening_arrest <= 30', 'days_b_screening_arrest >= -30', "is_recid != -1", 
                 "c_charge_degree != 'O'", "score_text != 'N/A'"]
-#  SUBSET DATA(fast, gives us tons of testing options, but non-consistent)
-#  there's (11700 choose 1000) possible datasets, or 3x10^1481 datasets
 
-def get_raw_data(filename, use_col_list = True):
+def get_raw_df(filename, use_col_list = True):
         df = None
         if use_col_list:  df = pd.read_csv(filename, usecols = cols)
         else :  df = pd.read_csv(filename)
@@ -30,9 +28,7 @@ def get_raw_data(filename, use_col_list = True):
         return df
 
 
-def munge_data(filters, mutations = None):
-        df = get_raw_data(raw_filename)
-        
+def munge_data(df, filters = None, mutations = None):        
         #filter out rows
         for f in filters: df = df.query(f)
 
@@ -45,28 +41,35 @@ def munge_data(filters, mutations = None):
 
         return df
 
-
-def create_tensors():
-        df = munge_data(filters)
-        
+def create_tensors(df):
         #Cat Tensor
         code_vals = []
         for c in cat_cols: code_vals.append(df[c].cat.codes.values)
         cat_data = np.stack(code_vals, 1)
         cat_tensor = torch.tensor(cat_data, dtype=torch.int64)
+        cat_tensor_ds = torch.utils.data.TensorDataset(cat_tensor)
 
         #this is a vectorization as opposed to a linearization that might be useful, idk
         cat_col_sizes = [len(df[c].cat.categories) for c in cat_cols]
         cat_embedding_sizes = [(col_size, min(50, (col_size+1)//2)) for col_size in cat_col_sizes]
-        print(num_tensor)
         
         #Num Tensor
         num_data = np.stack([df[c].values for c in num_cols], 1)
         num_tensor = torch.tensor(num_data, dtype=torch.float)
-        
-        return (num_tensor, cat_tensor)
+        num_tensor_ds = torch.utils.data.TensorDataset(num_tensor)
+        print(test)
 
-def divide_data_set(df, size=1000, split = [60,20,20]):
+        #Not sure if these can be combined, or whether that would make everything confusing?
+        return (num_tensor_ds, cat_tensor_ds)
+
+def create_dataloader(df):
+        num_tensor, cat_tensor = create_tensors(df)
+        num_loader = torch.utils.data.DataLoader(num_tensor, batch_size=2, collate_fn=collate_wrapper, pin_memory=True)
+        cat_loader = torch.utils.data.DataLoader(cat_tensor, batch_size=2, collate_fn=collate_wrapper, pin_memory=True)
+        return (num_loader, cat_loader)
+
+def divide_data_set(filename, size=1000, split = [60,20,20]):
+        df = get_raw_df(filename)
         n = len(df)
         #shuffle
         df = df.sample(frac=1)
@@ -87,6 +90,9 @@ def divide_data_set(df, size=1000, split = [60,20,20]):
         train_df.to_csv('data/training_data.csv') 
         validate_df.to_csv('data/validation_data.csv') 
         test_df.to_csv('data/test_data.csv') 
+
+        #return our dfs
+        return (train_df, validate_df, test_df)
 
 
 #Uncomment to get all the data
