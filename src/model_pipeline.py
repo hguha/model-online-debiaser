@@ -1,7 +1,7 @@
 import torch
 from torch.utils.tensorboard import SummaryWriter
 from src.model_architectures import ShallowFFN
-import src.munge
+from src.munge import divide_data_set, create_dataloader
 
 #get dataframes
 train_df, validate_df, test_df = munge.divide_data_set("data/raw_data.csv")
