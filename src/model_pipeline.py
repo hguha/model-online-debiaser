@@ -1,8 +1,12 @@
 import torch
 from torch.utils.tensorboard import SummaryWriter
 from src.model_architectures import ShallowFFN
-import src.munge # TODO(hirsh): implement
+import src.munge
+
+#get dataframes
 train_df, validate_df, test_df = munge.divide_data_set("data/raw_data.csv")
+
+#turn them into dataloaders maybe
 train_data_loader = munge.create_dataloader(train_df)
 validation_data_loader = munge.create_dataloader(validate_df)
 test_data_loader = munge.create_dataloader(test_df)

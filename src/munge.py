@@ -4,7 +4,7 @@ import random
 import torch
 # from config import configs
 
-raw_filename = "data/raw_data.csv" #configs['raw_data_path']
+raw_filename = configs['raw_data_path']
 n = 1000  # size of training set we want to consider
 total_size = sum(1 for line in open(raw_filename))
 use_full = True #if True, gives the entire data set. If False, gives us multiple trials
