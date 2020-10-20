@@ -2,9 +2,9 @@ import pandas as pd
 import numpy as np
 import random
 import torch
-from config import configs
+# from config import configs
 
-raw_filename = configs['raw_data_path']
+raw_filename = "data/raw_data.csv" #configs['raw_data_path']
 n = 1000  # size of training set we want to consider
 total_size = sum(1 for line in open(raw_filename))
 use_full = True #if True, gives the entire data set. If False, gives us multiple trials
@@ -22,18 +22,11 @@ filters = ['days_b_screening_arrest <= 30', 'days_b_screening_arrest >= -30', "i
 #  SUBSET DATA(fast, gives us tons of testing options, but non-consistent)
 #  there's (11700 choose 1000) possible datasets, or 3x10^1481 datasets
 
-def get_raw_data(filename):
+def get_raw_data(filename, use_col_list = True):
         df = None
-        if(not use_full):
-                keep = random.sample(range(1, total_size), n)
-                keep.append(0)
-                to_exclude = [i for i in range(total_size) if i not in keep]
-                df = pd.read_csv(filename, skiprows=to_exclude, usecols=cols)
-                # df.dropna(axis=0, how='any', thresh=None, subset=None, inplace=True)  #remove rows with missing data
-
-        else:
-                df = pd.read_csv(filename, usecols = cols)
-                df.dropna(axis=0, how='any', thresh=None, subset=None, inplace=True)  #remove rows with missing data
+        if use_col_list:  df = pd.read_csv(filename, usecols = cols)
+        else :  df = pd.read_csv(filename)
+        df.dropna(axis=0, how='any', thresh=None, subset=None, inplace=True)  #remove rows with missing data
         return df
 
 
@@ -72,3 +65,29 @@ def create_tensors():
         num_tensor = torch.tensor(num_data, dtype=torch.float)
         
         return (num_tensor, cat_tensor)
+
+def divide_data_set(df, size=1000, split = [60,20,20]):
+        n = len(df)
+        #shuffle
+        df = df.sample(frac=1)
+
+        #small_data(for other analysis)
+        small_df = df.head(size)
+        small_df.to_csv('data/small_data.csv')
+        
+        #create dfs for each set(can technically be skipped, but good practice)
+        amts = []
+        for i in split: amts.append(int(n*i/100))
+        print(amts)
+        train_df = df[:amts[0]]
+        validate_df = df[amts[0]:(amts[0]+amts[1])]
+        test_df = df[(amts[0]+amts[1]):n]
+
+        #create csv's       
+        train_df.to_csv('data/training_data.csv') 
+        validate_df.to_csv('data/validation_data.csv') 
+        test_df.to_csv('data/test_data.csv') 
+
+
+#Uncomment to get all the data
+#divide_data_set(get_raw_data(raw_filename))
