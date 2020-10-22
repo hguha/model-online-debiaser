@@ -2,9 +2,9 @@ import pandas as pd
 import numpy as np
 import random
 import torch
-from config import configs
+# from config import configs
 
-raw_filename = configs['raw_data_path']
+raw_filename = "data/raw_data.csv" #configs['raw_data_path']
 n = 1000  # size of training set we want to consider
 total_size = sum(1 for line in open(raw_filename))
 use_full = True  # if True, gives the entire data set. If False, gives us multiple trials
@@ -33,7 +33,8 @@ def get_raw_df(filename, use_col_list=True):
 
 def munge_data(df, filters=None, mutations=None):
     # filter out rows
-    for f in filters: df = df.query(f)
+    if filters:
+        for f in filters: df = df.query(f)
 
     # ensure proper dtypes
     for c in cat_cols:
@@ -71,8 +72,8 @@ def create_tensors(df):
 
 def create_dataloader(df):
     num_tensor, cat_tensor = create_tensors(df)
-    num_loader = torch.utils.data.DataLoader(num_tensor, batch_size=2, collate_fn=collate_wrapper, pin_memory=True)
-    cat_loader = torch.utils.data.DataLoader(cat_tensor, batch_size=2, collate_fn=collate_wrapper, pin_memory=True)
+    num_loader = torch.utils.data.DataLoader(num_tensor, batch_size=2, pin_memory=True)
+    cat_loader = torch.utils.data.DataLoader(cat_tensor, batch_size=2, pin_memory=True)
     return num_loader, cat_loader
 
 
@@ -90,7 +91,6 @@ def divide_data_set(filename, size=1000, split=[60, 20, 20]):
     amts = []
     for i in split:
         amts.append(int(n * i / 100))
-    print(amts)
     train_df = df[:amts[0]]
     validate_df = df[amts[0]:(amts[0] + amts[1])]
     test_df = df[(amts[0] + amts[1]):n]
@@ -104,4 +104,6 @@ def divide_data_set(filename, size=1000, split=[60, 20, 20]):
     return train_df, validate_df, test_df
 
 # Uncomment to get all the data
-divide_data_set(get_raw_data(raw_filename))
+# divide_data_set(raw_filename)
+
+#print(create_dataloader(munge_data(get_raw_df(raw_filename))))
