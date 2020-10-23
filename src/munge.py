@@ -3,9 +3,9 @@ import numpy as np
 import random
 import torch
 from torch.utils.data import Dataset, DataLoader
-from config import configs
+from config import path_configs, hyperparameters
 
-raw_filename = configs['raw_data_path']
+raw_filename = path_configs['raw_data_path']
 n = 1000  # size of training set we want to consider
 total_size = sum(1 for line in open(raw_filename))
 use_full = True  # if True, gives the entire data set. If False, gives us multiple trials
@@ -63,13 +63,19 @@ class RecidivismDataset(Dataset):
         covariates = row.loc[covariate_cols]
         score = row.loc['score_text']
 
-        return torch.cat([x.float() for x in covariates.values.tolist()]), score
+        return torch.cat([x.float() for x in covariates.values.tolist()]), score.argmax()
 
 
 def create_data_loader(df):
 
     def format_categorical_col(df, col):
-        categories = df[col].cat.categories.tolist()
+        df[col] = df[col].astype('category')
+        try:
+            categories = df[col].cat.categories.tolist()
+        except Exception as e:
+            print(col)
+            print(df[col])
+            breakpoint()
         num_categories = len(categories)
 
         def format_single_cell(x):
@@ -90,7 +96,7 @@ def create_data_loader(df):
         format_numerical_col(df, col)
 
     dataset = RecidivismDataset(df)
-    return DataLoader(dataset, batch_size=2)
+    return DataLoader(dataset, batch_size=hyperparameters['batch_size'])
 
 
     # Cat Tensor
@@ -129,7 +135,7 @@ def divide_data_set(filename, size=1000, split=[60, 20, 20]):
 
     # small_data(for other analysis)
     small_df = df.head(size)
-    small_df.to_csv(configs['small_data_path'])
+    small_df.to_csv(path_configs['small_data_path'])
 
     # create dfs for each set(can technically be skipped, but good practice)
     amts = []
@@ -140,9 +146,9 @@ def divide_data_set(filename, size=1000, split=[60, 20, 20]):
     test_df = df[(amts[0] + amts[1]):n]
 
     # create csv's
-    train_df.to_csv(configs['train_data_path'])
-    validation_df.to_csv(configs['validation_data_path'])
-    test_df.to_csv(configs['test_data_path'])
+    train_df.to_csv(path_configs['train_data_path'])
+    validation_df.to_csv(path_configs['validation_data_path'])
+    test_df.to_csv(path_configs['test_data_path'])
 
     # return our dfs
     return train_df, validation_df, test_df
@@ -151,11 +157,19 @@ def divide_data_set(filename, size=1000, split=[60, 20, 20]):
 # Uncomment to get all the data
 divide_data_set(raw_filename)
 
-# create train, validation, test data loaders
-train_loader = create_data_loader(munge_data(pd.read_csv(configs['train_data_path'])))
-validation_loader = create_data_loader(munge_data(pd.read_csv(configs['validation_data_path'])))
-test_loader = create_data_loader(munge_data(pd.read_csv(configs['test_data_path'])))
+def read_datasets():
+    train = pd.read_csv(path_configs['train_data_path'])
+    validation = pd.read_csv(path_configs['validation_data_path'])
+    test = pd.read_csv(path_configs['test_data_path'])
+    return train, validation, test
 
-for x, y in train_loader:
-    print(x)
-    print(y)
+# create train, validation, test data loaders
+train, validation, test = read_datasets()
+train_loader = create_data_loader(munge_data(train))
+validation_loader = create_data_loader(munge_data(validation))
+test_loader = create_data_loader(munge_data(test))
+
+# for x, y in train_loader:
+#     print(x)
+#     print(y)
+#     break;
