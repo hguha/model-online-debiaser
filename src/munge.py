@@ -77,6 +77,7 @@ def create_data_loader(df):
             print(df[col])
             breakpoint()
         num_categories = len(categories)
+        df[col] = df[col].astype('object')
 
         def format_single_cell(x):
             t = torch.zeros(num_categories)

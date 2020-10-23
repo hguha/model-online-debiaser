@@ -19,3 +19,21 @@ hyperparameters = {'batch_size': 20,
                    'num_epochs': 1000,  # default
                    'output_dim': 3,
                    'base_loss_fn': torch.nn.CrossEntropyLoss}
+
+if torch.cuda.is_available():
+    torch.cuda.device(0)
+    _device = 0
+else:
+    _device = 'cpu'
+
+machine_configs = {'device': _device}
+
+
+def safe_mkdir(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+
+safe_mkdir(join(path_configs['root_directory'], 'data'))
+safe_mkdir(join(path_configs['root_directory'], 'runs'))
+safe_mkdir(join(path_configs['root_directory'], 'models'))
