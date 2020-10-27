@@ -5,6 +5,8 @@ from os.path import join
 import torch
 from torch.utils.data import Dataset, DataLoader
 from config import path_configs, hyperparameters
+from copy import deepcopy
+
 
 raw_filename = path_configs['raw_data_path']
 n = 1000  # size of training set we want to consider
@@ -53,6 +55,7 @@ def munge_data(df, filters=None, mutations=None):
 class RecidivismDataset(Dataset):
     def __init__(self, data):
         self.data = data
+        self.columns = list(self.data.columns)[1:]
         with open(join(path_configs['root_directory'], 'data', 'categories_dict.txt'), 'r') as f:
             self.categories = eval(f.read())
 
@@ -61,19 +64,56 @@ class RecidivismDataset(Dataset):
 
     def __getitem__(self, idx):
         row = self.data.iloc[idx]
-        covariate_cols = [x for x in cat_cols + num_cols if x != 'is_recid']
+        covariate_cols = [x for x in self.columns if x != 'is_recid']
         covariates = row.loc[covariate_cols]
         score = row.loc['is_recid']
-
+        # print("ORDER", covariates)
         return torch.cat([x.float() for x in covariates.values.tolist()]), score
 
-    @staticmethod
-    def invert_tensor_to_row(t: torch.tensor):
-        pass  # TODO(hirsh): use self.categories
+    #change a specific tensor row
+    def invert_tensor_to_row(self, t):
+        new_df = {}
+        new_t = t[0].tolist()
+        #okay we need the size of each key in the categories dict
+        cats = {}
+        for col in self.columns:
+            if(col in self.categories):
+                cats[col] = len(self.categories[col])
+            elif col == "is_recid": pass
+            else: cats[col] = 1
+        count = 0
+        for col in cats:
+            tensor_by_col = new_t[count:count+cats[col]]
+            if(cats[col] > 1): 
+                idx = tensor_by_col.index(1)
+                new_df[col] = self.categories[col][idx]
+            else: new_df[col] = tensor_by_col[0]
+            count+=cats[col]
+        
+        #returns a dict of the raw_data row
+        return new_df
+
+
+    #change the whole ass thing back for whatever reason
+    def invert_tensor_to_df(self):
+        new_df = {}
+        for col in self.data:
+            x = self.data[col]
+            data = []
+            if(col in self.categories): #If the col is a cat row
+                for row in x:
+                    f = [int(i) for i in row.tolist()]
+                    idx = f.index(1)
+                    data.append(self.categories[col][idx])
+            else: #for num rows
+                for row in x: data.append(int(row))
+            new_df[col] = data
+        return pd.DataFrame(data=new_df)
+        
 
 
 def create_data_loader(df):
-
+    raw = deepcopy(df)
     categories_dict = {}
 
     def format_categorical_col(df, col):
@@ -109,9 +149,13 @@ def create_data_loader(df):
         print(categories_dict, file=f)
 
     dataset = RecidivismDataset(df)
+
+    #These should be the same!
+    # print(dataset.data.iloc[0])
+    # print(dataset.invert_tensor_to_row(dataset[0]))
+    
+    
     return DataLoader(dataset, batch_size=hyperparameters['batch_size'])
-
-
 
 
     # Cat Tensor
@@ -181,8 +225,8 @@ def read_datasets():
 # create train, validation, test data loaders
 train, validation, test = read_datasets()
 train_loader = create_data_loader(munge_data(train))
-validation_loader = create_data_loader(munge_data(validation))
-test_loader = create_data_loader(munge_data(test))
+# validation_loader = create_data_loader(munge_data(validation))
+# test_loader = create_data_loader(munge_data(test))
 
 # for x, y in train_loader:
 #     print(x)
