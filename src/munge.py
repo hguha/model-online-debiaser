@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import random
+from os.path import join
 import torch
 from torch.utils.data import Dataset, DataLoader
 from config import path_configs, hyperparameters
@@ -11,10 +12,9 @@ total_size = sum(1 for line in open(raw_filename))
 use_full = True  # if True, gives the entire data set. If False, gives us multiple trials
 
 # COLUMNS
-cat_cols = ['sex', 'age_cat', 'race', 'score_text', 'c_charge_degree']
+cat_cols = ['sex', 'age_cat', 'race', 'c_charge_degree', 'score_text']
 date_cols = ['c_jail_in', 'c_jail_out']
-num_cols = ['age', 'decile_score', 'priors_count', 'days_b_screening_arrest', 'is_recid',
-            'two_year_recid']
+num_cols = ['age', 'decile_score', 'priors_count', 'days_b_screening_arrest', 'is_recid']  # leaving out two_year_recid
 
 cols = cat_cols + num_cols
 # this may be a config, it will change depending on the csv
@@ -53,25 +53,34 @@ def munge_data(df, filters=None, mutations=None):
 class RecidivismDataset(Dataset):
     def __init__(self, data):
         self.data = data
+        with open(join(path_configs['root_directory'], 'data', 'categories_dict.txt'), 'r') as f:
+            self.categories = eval(f.read())
 
     def __len__(self):
         return len(self.data.index)
 
     def __getitem__(self, idx):
         row = self.data.iloc[idx]
-        covariate_cols = [x for x in cat_cols + num_cols if x != 'score_text']
+        covariate_cols = [x for x in cat_cols + num_cols if x != 'is_recid']
         covariates = row.loc[covariate_cols]
-        score = row.loc['score_text']
+        score = row.loc['is_recid']
 
-        return torch.cat([x.float() for x in covariates.values.tolist()]), score.argmax()
+        return torch.cat([x.float() for x in covariates.values.tolist()]), score
+
+    @staticmethod
+    def invert_tensor_to_row(t: torch.tensor):
+        pass  # TODO(hirsh): use self.categories
 
 
 def create_data_loader(df):
+
+    categories_dict = {}
 
     def format_categorical_col(df, col):
         df[col] = df[col].astype('category')
         try:
             categories = df[col].cat.categories.tolist()
+            categories_dict[col] = categories
         except Exception as e:
             print(col)
             print(df[col])
@@ -96,8 +105,13 @@ def create_data_loader(df):
     for col in num_cols:
         format_numerical_col(df, col)
 
+    with open(join(path_configs['root_directory'], 'data', 'categories_dict.txt'), 'w') as f:
+        print(categories_dict, file=f)
+
     dataset = RecidivismDataset(df)
     return DataLoader(dataset, batch_size=hyperparameters['batch_size'])
+
+
 
 
     # Cat Tensor

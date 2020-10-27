@@ -1,0 +1,1 @@
+{'sex': ['Female', 'Male'], 'age_cat': ['25 - 45', 'Greater than 45', 'Less than 25'], 'race': ['African-American', 'Asian', 'Caucasian', 'Hispanic', 'Native American', 'Other'], 'c_charge_degree': ['F', 'M'], 'score_text': ['High', 'Low', 'Medium']}
