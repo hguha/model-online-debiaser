@@ -21,12 +21,12 @@ def is_biased(model):
     return False  # TODO(jeffrey + hirsh): make not trivial
 
 
-def write_model(model):
-    pass  # TODO(jeffrey): make not stupid
+def write_model(model, model_path):
+    torch.save(model.state_dict(), model_path)
 
 
-def read_model(model):
-    pass  # TODO(jeffrey): make not stupid
+def read_model(model_path):
+    pass  # TODO(Hirsh)
 
 
 def train(hyperparameters, experimental: bool = False, test: bool = False,
@@ -42,7 +42,7 @@ def train(hyperparameters, experimental: bool = False, test: bool = False,
     optimizer = torch.optim.Adam(model.parameters(), lr=hyperparameters['learning_rate'])
     criterion = hyperparameters['base_loss_fn']()
 
-    running_confusion_matrix = None
+    classwise_errors = []
 
     for epoch in range(hyperparameters['num_epochs']):
         num_batches = len(train_data_loader)
@@ -56,7 +56,7 @@ def train(hyperparameters, experimental: bool = False, test: bool = False,
             y_hat = model(x)
 
             if experimental:
-                loss = experimental_loss(running_confusion_matrix, y_hat, y, criterion)
+                loss = experimental_loss(classwise_errors, y_hat, y, criterion)
             else:
                 loss = criterion(y_hat, y)
             loss.backward()
@@ -88,12 +88,12 @@ def train(hyperparameters, experimental: bool = False, test: bool = False,
             losses.append(loss)
             accuracies.append(accuracy)
 
-        running_confusion_matrix = None  # TODO(jeffrey): implement
+        classwise_errors = None  # TODO(hirsh): implement.  Should be a list or vector of length |C|, the # of races in the dataset
 
         writer.add_scalar('average_' + name + '_' + 'loss', sum(losses) / len(losses), epoch)
         writer.add_scalar('average_' + name + '_' + 'accuracy', sum(accuracies) / len(accuracies), epoch)
 
-        torch.save(model.state_dict(), model_path)
+        write_model(model, model_path)
 
         # if experimental:  # TODO(jeffrey): implement
         #     if is_biased(model):
