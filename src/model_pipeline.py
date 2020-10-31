@@ -34,7 +34,7 @@ def train(hyperparameters, experimental: bool = False, test: bool = False,
 
     model_path = join(path_configs['root_directory'], 'models', model_name + '.model')
     writer_path = join(path_configs['root_directory'], 'runs', model_name + str(time.time()))
-    writer = SummaryWriter(writer_path)  # TODO(jeffrey): add path
+    writer = SummaryWriter(writer_path)
     model = ShallowFFN(hyperparameters['input_dim'],
                        hyperparameters['hidden_dim'],
                        hyperparameters['output_dim'])
@@ -92,6 +92,7 @@ def train(hyperparameters, experimental: bool = False, test: bool = False,
 
         writer.add_scalar('average_' + name + '_' + 'loss', sum(losses) / len(losses), epoch)
         writer.add_scalar('average_' + name + '_' + 'accuracy', sum(accuracies) / len(accuracies), epoch)
+        writer.add_scalar('worst_classwise_error', max(classwise_errors), epoch)  # TODO(hirsh): make sure this write makes sense
 
         write_model(model, model_path)
 
