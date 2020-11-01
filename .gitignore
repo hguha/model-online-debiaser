@@ -3,6 +3,7 @@ venv
 *.csv
 !data/raw_data.csv
 src/runs
+runs
 models
 __pycache__
 *.pyc

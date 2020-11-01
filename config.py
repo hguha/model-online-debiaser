@@ -12,13 +12,13 @@ path_configs = {'root_directory': _root_directory,
                 'test_data_path': join(_root_directory, 'data', 'test_data.csv')
                 }
 
-hyperparameters = {'batch_size': 20,
-                   'input_dim': 19,
+hyperparameters = {'batch_size': 25,
+                   'input_dim': 20,
                    'hidden_dim': 100,  # default
                    'learning_rate': 10 ** (-5),  # default
                    'num_epochs': 1000,  # default
-                   'output_dim': 3,
-                   'base_loss_fn': torch.nn.CrossEntropyLoss}
+                   'output_dim': 1,
+                   'base_loss_fn': torch.nn.BCELoss}
 
 if torch.cuda.is_available():
     torch.cuda.device(0)

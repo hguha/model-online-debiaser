@@ -11,4 +11,4 @@ class ShallowFFN(nn.Module):
         self.softmax = nn.Softmax()
 
     def forward(self, x):
-        return self.fc2(self.relu(self.fc1(x)))
+        return self.softmax(self.fc2(self.relu(self.fc1(x))))

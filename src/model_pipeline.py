@@ -12,13 +12,16 @@ validation_data_loader = create_data_loader(validation_df)
 test_data_loader = create_data_loader(test_df)
 
 
-def experimental_loss(confusion_matrix, y_hat, y, loss_fn):
-    breakpoint()
-    return loss_fn(y_hat, y)  # TODO(jeffrey + hirsh): make not trivial
+# TODO(hirsh): make sure this works
+def experimental_loss(classwise_errors, x, y_hat, y, loss_fn):
+    # get race for every example in the batch
+    races = []  # apply invert fn to x
+    losses = [classwise_errors[races[i]] * loss_fn(y_hat[i], y[i]) for i in range(x.size()[0])]
+    return sum(losses) / len(losses)
 
 
-def is_biased(model):
-    return False  # TODO(jeffrey + hirsh): make not trivial
+def is_biased(classwise_errors, epoch):
+    return max(classwise_errors) / min(classwise_errors) > 1 + 1 / epoch
 
 
 def write_model(model, model_path):
@@ -49,8 +52,8 @@ def train(hyperparameters, experimental: bool = False, test: bool = False,
 
         model.train()
         for batch_idx, (x, y) in enumerate(train_data_loader):
-            x = x.to(machine_configs['device'])
-            y = y.to(machine_configs['device'])
+            x = x.to(machine_configs['device']).float()
+            y = y.to(machine_configs['device']).float()
             optimizer.zero_grad()
 
             y_hat = model(x)
@@ -74,28 +77,22 @@ def train(hyperparameters, experimental: bool = False, test: bool = False,
             name = 'validation'
 
         losses = []
-        accuracies = []
         for batch_idx, (x, y) in enumerate(dl):
-            x = x.to(machine_configs['device'])
-            y = y.to(machine_configs['device'])
+            x = x.to(machine_configs['device']).float()
+            y = y.to(machine_configs['device']).float()
             y_hat = model(x)
             loss = criterion(y_hat, y)
-
-            batch_size = y_hat.size()[0]
-            best_guess = y_hat.argmax(dim=1)
-            accuracy = float((best_guess.eq(y)).sum()) / batch_size
-
             losses.append(loss)
-            accuracies.append(accuracy)
 
         classwise_errors = None  # TODO(hirsh): implement.  Should be a list or vector of length |C|, the # of races in the dataset
 
+        if experimental:
+            if is_biased(classwise_errors, epoch):
+                # rollback model
+                model = read_model(model_path)  # TODO(hirsh): make sure this works
+
         writer.add_scalar('average_' + name + '_' + 'loss', sum(losses) / len(losses), epoch)
-        writer.add_scalar('average_' + name + '_' + 'accuracy', sum(accuracies) / len(accuracies), epoch)
-        writer.add_scalar('worst_classwise_error', max(classwise_errors), epoch)  # TODO(hirsh): make sure this write makes sense
+        # writer.add_scalar('worst_classwise_error', max(classwise_errors), epoch)  # TODO(hirsh): make sure this write makes sense
+        # writer.add_scalar('bias ratio', max(classwise_errors) / min(classwise_errors), epoch)  # TODO(hirsh): make sure this write makes sense
 
         write_model(model, model_path)
-
-        # if experimental:  # TODO(jeffrey): implement
-        #     if is_biased(model):
-        #         model = read_model()  # rollback
