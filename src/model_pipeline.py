@@ -4,12 +4,15 @@ from os.path import join
 from config import path_configs, machine_configs
 from torch.utils.tensorboard import SummaryWriter
 from src.model_architectures import ShallowFFN
-from src.munge import read_datasets, create_data_loader
+from src.munge import read_datasets, create_data_loader, invert_tensor_to_df
 
 train_df, validation_df, test_df = read_datasets()
+print(train_df)
 train_data_loader = create_data_loader(train_df)
 validation_data_loader = create_data_loader(validation_df)
 test_data_loader = create_data_loader(test_df)
+t_df = invert_tensor_to_df(train_df)
+v_df = invert_tensor_to_df(train_df)
 
 
 # TODO(hirsh): make sure this works
@@ -29,8 +32,8 @@ def write_model(model, model_path):
 
 
 def read_model(model_path):
-    pass  # TODO(Hirsh)
-
+    model = torch.load(model_path)
+    return model.eval()
 
 def train(hyperparameters, experimental: bool = False, test: bool = False,
           model_name=''):
@@ -71,9 +74,11 @@ def train(hyperparameters, experimental: bool = False, test: bool = False,
 
         if test:
             dl = test_data_loader
+            df = t_df
             name = 'test'
         else:
             dl = validation_data_loader
+            df = v_df
             name = 'validation'
 
         losses = []
@@ -83,16 +88,17 @@ def train(hyperparameters, experimental: bool = False, test: bool = False,
             y_hat = model(x)
             loss = criterion(y_hat, y)
             losses.append(loss)
-
-        classwise_errors = None  # TODO(hirsh): implement.  Should be a list or vector of length |C|, the # of races in the dataset
-
+        avg_loss = sum(losses) / len(losses)
+        #use sex as just some other column in the list to get a list of counts of each race
+        counts = df.groupby("race").count()["sex"].tolist() 
+        classwise_errors = list(map(lambda x: (avg_loss*x)/sum(counts), counts))
         if experimental:
             if is_biased(classwise_errors, epoch):
                 # rollback model
-                model = read_model(model_path)  # TODO(hirsh): make sure this works
+                model = read_model(model_path)
 
-        writer.add_scalar('average_' + name + '_' + 'loss', sum(losses) / len(losses), epoch)
-        # writer.add_scalar('worst_classwise_error', max(classwise_errors), epoch)  # TODO(hirsh): make sure this write makes sense
-        # writer.add_scalar('bias ratio', max(classwise_errors) / min(classwise_errors), epoch)  # TODO(hirsh): make sure this write makes sense
+        writer.add_scalar('average_' + name + '_' + 'loss', avg_loss, epoch)
+        writer.add_scalar('worst_classwise_error', max(classwise_errors), epoch)
+        writer.add_scalar('bias ratio', max(classwise_errors) / min(classwise_errors), epoch)
 
         write_model(model, model_path)

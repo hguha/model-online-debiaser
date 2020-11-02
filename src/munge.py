@@ -9,9 +9,6 @@ from copy import deepcopy
 
 
 raw_filename = path_configs['raw_data_path']
-n = 1000  # size of training set we want to consider
-total_size = sum(1 for line in open(raw_filename))
-use_full = True  # if True, gives the entire data set. If False, gives us multiple trials
 
 # COLUMNS
 cat_cols = ['sex', 'age_cat', 'race', 'c_charge_degree', 'score_text']
@@ -22,7 +19,6 @@ cols = cat_cols + num_cols
 # this may be a config, it will change depending on the csv
 filters = ['days_b_screening_arrest <= 30', 'days_b_screening_arrest >= -30', "is_recid != -1",
            "c_charge_degree != 'O'", "score_text != 'N/A'"]
-
 
 def get_raw_df(filename, use_col_list=True):
     df = None
@@ -67,7 +63,6 @@ class RecidivismDataset(Dataset):
         covariate_cols = [x for x in self.columns if x != 'is_recid']
         covariates = row.loc[covariate_cols]
         score = row.loc['is_recid']
-        # print("ORDER", covariates)
         return torch.cat([x.float() for x in covariates.values.tolist()]), score
 
     #change a specific tensor row
@@ -93,23 +88,23 @@ class RecidivismDataset(Dataset):
         #returns a dict of the raw_data row
         return new_df
 
-
-    #change the whole ass thing back for whatever reason
-    def invert_tensor_to_df(self):
-        new_df = {}
-        for col in self.data:
-            x = self.data[col]
-            data = []
-            if(col in self.categories): #If the col is a cat row
-                for row in x:
-                    f = [int(i) for i in row.tolist()]
-                    idx = f.index(1)
-                    data.append(self.categories[col][idx])
-            else: #for num rows
-                for row in x: data.append(int(row))
-            new_df[col] = data
-        return pd.DataFrame(data=new_df)
-        
+#change the whole ass thing back for whatever reason
+def invert_tensor_to_df(data):
+    new_df = {}
+    with open(join(path_configs['root_directory'], 'data', 'categories_dict.txt'), 'r') as f:
+            categories = eval(f.read())
+    for col in data:
+        x = data[col]
+        new_data = []
+        if(col in categories): #If the col is a cat row
+            for row in x:
+                f = [int(i) for i in row.tolist()]
+                idx = f.index(1)
+                new_data.append(categories[col][idx])
+        else: #for num rows
+            for row in x: new_data.append(int(row))
+        new_df[col] = new_data
+    return pd.DataFrame(data=new_df)
 
 
 def create_data_loader(df):
@@ -150,40 +145,7 @@ def create_data_loader(df):
 
     dataset = RecidivismDataset(df)
 
-    #These should be the same!
-    # print(dataset.data.iloc[0])
-    # print(dataset.invert_tensor_to_row(dataset[0]))
-    
-    
     return DataLoader(dataset, batch_size=hyperparameters['batch_size'])
-
-
-    # Cat Tensor
-    # code_vals = []
-    # for c in cat_cols:
-    #     code_vals.append(df[c].cat.codes.values)
-    # cat_data = np.stack(code_vals, 1)
-    # cat_tensor = torch.tensor(cat_data, dtype=torch.int64)
-    # cat_tensor_ds = torch.utils.data.TensorDataset(cat_tensor)
-    #
-    # # this is a vectorization as opposed to a linearization that might be useful, idk
-    # cat_col_sizes = [len(df[c].cat.categories) for c in cat_cols]
-    # cat_embedding_sizes = [(col_size, min(50, (col_size + 1) // 2)) for col_size in cat_col_sizes]
-    #
-    # # Num Tensor
-    # num_data = np.stack([df[c].values for c in num_cols], 1)
-    # num_tensor = torch.tensor(num_data, dtype=torch.float)
-    # num_tensor_ds = torch.utils.data.TensorDataset(num_tensor)
-
-    # Not sure if these can be combined, or whether that would make everything confusing?
-    # return num_tensor_ds, cat_tensor_ds
-
-
-# def create_dataloader(df):
-#     num_tensor, cat_tensor = create_tensors(df)
-#     num_loader = torch.utils.data.DataLoader(num_tensor, batch_size=2, pin_memory=True)
-#     cat_loader = torch.utils.data.DataLoader(cat_tensor, batch_size=2, pin_memory=True)
-#     return num_loader, cat_loader
 
 
 def divide_data_set(filename, size=1000, split=[60, 20, 20]):
@@ -222,13 +184,7 @@ def read_datasets():
     test = pd.read_csv(path_configs['test_data_path'])
     return train, validation, test
 
-# create train, validation, test data loaders
-train, validation, test = read_datasets()
-train_loader = create_data_loader(munge_data(train))
+# train, validation, test = read_datasets()
+# train_loader = create_data_loader(munge_data(train))
 # validation_loader = create_data_loader(munge_data(validation))
 # test_loader = create_data_loader(munge_data(test))
-
-# for x, y in train_loader:
-#     print(x)
-#     print(y)
-#     break;
