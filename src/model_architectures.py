@@ -8,7 +8,7 @@ class ShallowFFN(nn.Module):
         self.relu = nn.ReLU()
         self.fc1 = nn.Linear(input_dim, hidden_dim)
         self.fc2 = nn.Linear(hidden_dim, output_dim)
-        self.softmax = nn.Softmax()
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
-        return self.softmax(self.fc2(self.relu(self.fc1(x))))
+        return self.sigmoid(self.fc2(self.relu(self.fc1(x))))

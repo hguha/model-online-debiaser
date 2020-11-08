@@ -7,7 +7,6 @@ from torch.utils.data import Dataset, DataLoader
 from config import path_configs, hyperparameters
 from copy import deepcopy
 
-
 raw_filename = path_configs['raw_data_path']
 
 # COLUMNS
@@ -19,6 +18,7 @@ cols = cat_cols + num_cols
 # this may be a config, it will change depending on the csv
 filters = ['days_b_screening_arrest <= 30', 'days_b_screening_arrest >= -30', "is_recid != -1",
            "c_charge_degree != 'O'", "score_text != 'N/A'"]
+
 
 def get_raw_df(filename, use_col_list=True):
     df = None
@@ -48,12 +48,16 @@ def munge_data(df, filters=None, mutations=None):
     return df
 
 
+def get_categories():
+    with open(join(path_configs['root_directory'], 'data', 'categories_dict.txt'), 'r') as f:
+        return eval(f.read())
+
+
 class RecidivismDataset(Dataset):
     def __init__(self, data):
         self.data = data
         self.columns = list(self.data.columns)[1:]
-        with open(join(path_configs['root_directory'], 'data', 'categories_dict.txt'), 'r') as f:
-            self.categories = eval(f.read())
+        self.categories = get_categories()
 
     def __len__(self):
         return len(self.data.index)
@@ -65,43 +69,51 @@ class RecidivismDataset(Dataset):
         score = row.loc['is_recid']
         return torch.cat([x.float() for x in covariates.values.tolist()]), score
 
-    #change a specific tensor row
+    # change a specific tensor row
     def invert_tensor_to_row(self, t):
         new_df = {}
         new_t = t[0].tolist()
-        #okay we need the size of each key in the categories dict
+        # okay we need the size of each key in the categories dict
         cats = {}
         for col in self.columns:
-            if(col in self.categories):
+            if (col in self.categories):
                 cats[col] = len(self.categories[col])
-            elif col == "is_recid": pass
-            else: cats[col] = 1
+            elif col == "is_recid":
+                pass
+            else:
+                cats[col] = 1
         count = 0
         for col in cats:
-            tensor_by_col = new_t[count:count+cats[col]]
-            if(cats[col] > 1): 
+            tensor_by_col = new_t[count:count + cats[col]]
+            if cats[col] > 1:
                 idx = tensor_by_col.index(1)
                 new_df[col] = self.categories[col][idx]
-            else: new_df[col] = tensor_by_col[0]
-            count+=cats[col]
-        
-        #returns a dict of the raw_data row
+            else:
+                new_df[col] = tensor_by_col[0]
+            count += cats[col]
+
+        # returns a dict of the raw_data row
         return new_df
 
-#change the whole ass thing back for whatever reason
+    def check_invert(self):
+        for idx in range(len(self.data)):
+            print(self.invert_tensor_to_row(self.__getitem__(idx)))
+
+
+# change the whole ass thing back for whatever reason
 def invert_tensor_to_df(data):
     new_df = {}
     with open(join(path_configs['root_directory'], 'data', 'categories_dict.txt'), 'r') as f:
-            categories = eval(f.read())
+        categories = eval(f.read())
     for col in data:
         x = data[col]
         new_data = []
-        if(col in categories): #If the col is a cat row
+        if (col in categories):  # If the col is a cat row
             for row in x:
                 f = [int(i) for i in row.tolist()]
                 idx = f.index(1)
                 new_data.append(categories[col][idx])
-        else: #for num rows
+        else:  # for num rows
             for row in x: new_data.append(int(row))
         new_df[col] = new_data
     return pd.DataFrame(data=new_df)
@@ -144,6 +156,7 @@ def create_data_loader(df):
         print(categories_dict, file=f)
 
     dataset = RecidivismDataset(df)
+    # dataset.check_invert()
 
     return DataLoader(dataset, batch_size=hyperparameters['batch_size'])
 
@@ -153,10 +166,6 @@ def divide_data_set(filename, size=1000, split=[60, 20, 20]):
     n = len(df)
     # shuffle
     df = df.sample(frac=1)
-
-    # small_data(for other analysis)
-    small_df = df.head(size)
-    small_df.to_csv(path_configs['small_data_path'])
 
     # create dfs for each set(can technically be skipped, but good practice)
     amts = []
@@ -176,7 +185,7 @@ def divide_data_set(filename, size=1000, split=[60, 20, 20]):
 
 
 # Uncomment to get all the data
-divide_data_set(raw_filename)
+# divide_data_set(raw_filename)
 
 def read_datasets():
     train = pd.read_csv(path_configs['train_data_path'])
@@ -188,3 +197,6 @@ def read_datasets():
 # train_loader = create_data_loader(munge_data(train))
 # validation_loader = create_data_loader(munge_data(validation))
 # test_loader = create_data_loader(munge_data(test))
+
+
+# test_small_invert = create_data_loader(munge_data(pd.read_csv(path_configs['small_data_path'])))

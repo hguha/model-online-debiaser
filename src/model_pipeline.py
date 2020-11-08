@@ -4,15 +4,14 @@ from os.path import join
 from config import path_configs, machine_configs
 from torch.utils.tensorboard import SummaryWriter
 from src.model_architectures import ShallowFFN
-from src.munge import read_datasets, create_data_loader, invert_tensor_to_df
+from src.munge import read_datasets, create_data_loader, RecidivismDataset, get_categories
 
 train_df, validation_df, test_df = read_datasets()
 print(train_df)
 train_data_loader = create_data_loader(train_df)
 validation_data_loader = create_data_loader(validation_df)
 test_data_loader = create_data_loader(test_df)
-t_df = invert_tensor_to_df(train_df)
-v_df = invert_tensor_to_df(train_df)
+categories = get_categories()
 
 
 # TODO(hirsh): make sure this works
@@ -34,6 +33,7 @@ def write_model(model, model_path):
 def read_model(model_path):
     model = torch.load(model_path)
     return model.eval()
+
 
 def train(hyperparameters, experimental: bool = False, test: bool = False,
           model_name=''):
@@ -58,7 +58,6 @@ def train(hyperparameters, experimental: bool = False, test: bool = False,
             x = x.to(machine_configs['device']).float()
             y = y.to(machine_configs['device']).float()
             optimizer.zero_grad()
-
             y_hat = model(x)
 
             if experimental:
@@ -74,31 +73,46 @@ def train(hyperparameters, experimental: bool = False, test: bool = False,
 
         if test:
             dl = test_data_loader
-            df = t_df
             name = 'test'
         else:
             dl = validation_data_loader
-            df = v_df
             name = 'validation'
 
         losses = []
+
+        classwise_errors = {race: [] for race in categories['race']}
+
         for batch_idx, (x, y) in enumerate(dl):
             x = x.to(machine_configs['device']).float()
             y = y.to(machine_configs['device']).float()
             y_hat = model(x)
             loss = criterion(y_hat, y)
             losses.append(loss)
+
+            separate_tensor_examples = torch.unbind(x, dim=0)
+            for idx, example in enumerate(separate_tensor_examples):
+                assert isinstance(dl.dataset, RecidivismDataset)
+                reconstruction = dl.dataset.invert_tensor_to_row(example.unsqueeze(dim=0))
+                race = reconstruction['race']
+                example_loss = criterion(y_hat[idx], y[idx])
+                classwise_errors[race].append(example_loss)
+
         avg_loss = sum(losses) / len(losses)
-        #use sex as just some other column in the list to get a list of counts of each race
-        counts = df.groupby("race").count()["sex"].tolist() 
-        classwise_errors = list(map(lambda x: (avg_loss*x)/sum(counts), counts))
+        avg_classwise_errors = {race: sum(classwise_errors[race]) / len(classwise_errors[race])
+                                for race in classwise_errors}
+
         if experimental:
-            if is_biased(classwise_errors, epoch):
+            if is_biased(avg_classwise_errors.values(), epoch):
                 # rollback model
                 model = read_model(model_path)
 
+        # breakpoint()
         writer.add_scalar('average_' + name + '_' + 'loss', avg_loss, epoch)
-        writer.add_scalar('worst_classwise_error', max(classwise_errors), epoch)
-        writer.add_scalar('bias ratio', max(classwise_errors) / min(classwise_errors), epoch)
+        writer.add_scalar('worst_classwise_error', max(avg_classwise_errors.values()), epoch)
+        writer.add_scalar('worst_bias_ratio', max(avg_classwise_errors.values()) / min(avg_classwise_errors.values()), epoch)
+        writer.add_scalar('black_to_write_bias_ratio', avg_classwise_errors['African-American'] / avg_classwise_errors['Caucasian'], epoch)
+        writer.add_scalar('error on African-Americans', avg_classwise_errors['African-American'], epoch)
+        writer.add_scalar('error on Caucasians', avg_classwise_errors['Caucasian'], epoch)
+        writer.add_scalar('avg classwise errors', avg_classwise_errors, epoch)
 
         write_model(model, model_path)
