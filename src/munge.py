@@ -9,6 +9,10 @@ from copy import deepcopy
 
 raw_filename = path_configs['raw_data_path']
 
+#if the use is true, then we will change some percent of Caucasians to African-Americans(or vice versa!)
+use_change_sample = False
+change_sample = {"use": use_change_sample, "prob": 0.2, "from": "Caucasian", "to": "African-American"}
+
 # COLUMNS
 cat_cols = ['sex', 'age_cat', 'race', 'c_charge_degree', 'score_text']
 date_cols = ['c_jail_in', 'c_jail_out']
@@ -99,29 +103,33 @@ class RecidivismDataset(Dataset):
         for idx in range(len(self.data)):
             print(self.invert_tensor_to_row(self.__getitem__(idx)))
 
-
-# change the whole ass thing back for whatever reason
-def invert_tensor_to_df(data):
-    new_df = {}
-    with open(join(path_configs['root_directory'], 'data', 'categories_dict.txt'), 'r') as f:
-        categories = eval(f.read())
-    for col in data:
-        x = data[col]
-        new_data = []
-        if (col in categories):  # If the col is a cat row
-            for row in x:
-                f = [int(i) for i in row.tolist()]
-                idx = f.index(1)
-                new_data.append(categories[col][idx])
-        else:  # for num rows
-            for row in x: new_data.append(int(row))
-        new_df[col] = new_data
-    return pd.DataFrame(data=new_df)
+    # change the whole ass thing back for whatever reason
+    def invert_tensor_to_df(self):
+        new_df = {}
+        with open(join(path_configs['root_directory'], 'data', 'categories_dict.txt'), 'r') as f:
+            categories = eval(f.read())
+        for col in self.data:
+            x = self.data[col]
+            new_data = []
+            if (col in categories):  # If the col is a cat row
+                for row in x:
+                    f = [int(i) for i in row.tolist()]
+                    idx = f.index(1)
+                    new_data.append(categories[col][idx])
+            else:  # for num rows
+                for row in x: new_data.append(int(row))
+            new_df[col] = new_data
+        return pd.DataFrame(data=new_df)
 
 
 def create_data_loader(df):
-    raw = deepcopy(df)
     categories_dict = {}
+
+    if(change_sample["use"]):
+        l = df["race"].tolist()
+        for i in range(len(l)):
+            if l[i]==change_sample["from"] and random.uniform(0,1) < change_sample["prob"]: l[i] = change_sample["to"]
+        df["race"] = l
 
     def format_categorical_col(df, col):
         df[col] = df[col].astype('category')

@@ -1,13 +1,13 @@
 import torch
 import time
+import random
 from os.path import join
 from config import path_configs, machine_configs
 from torch.utils.tensorboard import SummaryWriter
 from src.model_architectures import ShallowFFN
-from src.munge import read_datasets, create_data_loader, RecidivismDataset, get_categories
+from src.munge import read_datasets, create_data_loader, RecidivismDataset, get_categories, change_sample
 
 train_df, validation_df, test_df = read_datasets()
-print(train_df)
 train_data_loader = create_data_loader(train_df)
 validation_data_loader = create_data_loader(validation_df)
 test_data_loader = create_data_loader(test_df)
@@ -81,25 +81,34 @@ def train(hyperparameters, experimental: bool = False, test: bool = False,
         losses = []
 
         classwise_errors = {race: [] for race in categories['race']}
-
+        score_text = { "High": 0, "Medium": 0, "Low":0 }
         for batch_idx, (x, y) in enumerate(dl):
             x = x.to(machine_configs['device']).float()
             y = y.to(machine_configs['device']).float()
             y_hat = model(x)
             loss = criterion(y_hat, y)
             losses.append(loss)
-
+            
             separate_tensor_examples = torch.unbind(x, dim=0)
             for idx, example in enumerate(separate_tensor_examples):
                 assert isinstance(dl.dataset, RecidivismDataset)
                 reconstruction = dl.dataset.invert_tensor_to_row(example.unsqueeze(dim=0))
                 race = reconstruction['race']
                 example_loss = criterion(y_hat[idx], y[idx])
+                y_hat_val = float(y_hat[idx])
+                #using the same ranges as COMPAS to compare
+                if(0 <= y_hat_val <= 0.4): score_text["Low"]+=1
+                elif(0.4 < y_hat_val <= 0.7): score_text["Medium"]+=1
+                elif(0.7 < y_hat_val <= 1): score_text["High"]+=1
+                else: print(y_hat_val)
+                
                 classwise_errors[race].append(example_loss)
-
+        
+        df_grouped = dl.dataset.invert_tensor_to_df().groupby("score_text").count()["sex"].tolist()
+        compas_score_text = {"High": df_grouped[0], "Low": df_grouped[1], "Medium": df_grouped[2]}
         avg_loss = sum(losses) / len(losses)
-        avg_classwise_errors = {race: sum(classwise_errors[race]) / len(classwise_errors[race])
-                                for race in classwise_errors}
+
+        avg_classwise_errors = {race: sum(classwise_errors[race]) / len(classwise_errors[race]) for race in classwise_errors}
 
         if experimental:
             if is_biased(avg_classwise_errors.values(), epoch):
@@ -111,8 +120,11 @@ def train(hyperparameters, experimental: bool = False, test: bool = False,
         writer.add_scalar('worst_classwise_error', max(avg_classwise_errors.values()), epoch)
         writer.add_scalar('worst_bias_ratio', max(avg_classwise_errors.values()) / min(avg_classwise_errors.values()), epoch)
         writer.add_scalar('black_to_write_bias_ratio', avg_classwise_errors['African-American'] / avg_classwise_errors['Caucasian'], epoch)
-        writer.add_scalar('error on African-Americans', avg_classwise_errors['African-American'], epoch)
-        writer.add_scalar('error on Caucasians', avg_classwise_errors['Caucasian'], epoch)
-        writer.add_scalar('avg classwise errors', avg_classwise_errors, epoch)
-
+        writer.add_scalar('error on African-Americans - ' + ("CHANGED" if change_sample["use"] else "UNCHANGED"), avg_classwise_errors['African-American'], epoch)
+        writer.add_scalar('error on Caucasians - ' + ("CHANGED" if change_sample["use"] else "UNCHANGED"), avg_classwise_errors['Caucasian'], epoch)
+        writer.add_scalar('avg classwise errors', sum(avg_classwise_errors.values())/len(avg_classwise_errors.values()), epoch)
+        writer.add_scalar('compas_diff_high', abs(score_text["High"] - compas_score_text["High"]), epoch)
+        writer.add_scalar('compas_diff_med', abs(score_text["Medium"] - compas_score_text["Medium"]), epoch)
+        writer.add_scalar('compas_diff_low', abs(score_text["Low"] - compas_score_text["Low"]), epoch)
         write_model(model, model_path)
+        print(epoch)
