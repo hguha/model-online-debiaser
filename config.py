@@ -18,7 +18,8 @@ hyperparameters = {'batch_size': 25,
                    'learning_rate': 10 ** (-5),  # default
                    'num_epochs': 1000,  # default
                    'output_dim': 1,
-                   'base_loss_fn': torch.nn.BCELoss}
+                   'base_loss_fn': torch.nn.BCELoss,
+                   'epsilon': 0.05}
 
 if torch.cuda.is_available():
     torch.cuda.device(0)
